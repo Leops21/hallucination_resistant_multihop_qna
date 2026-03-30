@@ -59,30 +59,54 @@ class OllamaEmbedder:
     def encode_query(self, text: str) -> np.ndarray:
         return self._embed_batch([text])[0]
 
-    def _embed_batch(self, texts: List[str]) -> np.ndarray:
-        url = f"{self.base_url}/api/embed"
-        payload = {
-            "model": self.model, 
-            "input": texts,
-            "keep_alive": -1
-            }
+def _embed_batch(self, texts):
+    import numpy as np
+    import requests
 
-        try:
-            resp = requests.post(url, json=payload, timeout=120)
-            resp.raise_for_status()
-        except requests.ConnectionError as e:
-            raise RuntimeError(f"Ollama not reachable at {url}") from e
-        except requests.HTTPError as e:
+    # New Ollama endpoint first
+    try:
+        resp = requests.post(
+            f"{self.base_url}/api/embed",
+            json={
+                "model": self.model_name,
+                "input": texts,
+            },
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        if "embeddings" in data and data["embeddings"]:
+            return [np.array(x, dtype=np.float32) for x in data["embeddings"]]
+
+        raise RuntimeError(f"Unexpected /api/embed response: {data}")
+
+    except requests.exceptions.HTTPError as e:
+        # If /api/embed is missing, fall back to deprecated /api/embeddings
+        if e.response is None or e.response.status_code != 404:
             raise RuntimeError(f"Ollama /api/embed returned error: {e}") from e
 
+    # Fallback path for older / different Ollama behavior:
+    # call /api/embeddings one text at a time
+    vectors = []
+    for text in texts:
+        resp = requests.post(
+            f"{self.base_url}/api/embeddings",
+            json={
+                "model": self.model_name,
+                "prompt": text,
+            },
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
         data = resp.json()
-        embeddings = data.get("embeddings")
-        if not embeddings:
-            raise RuntimeError(f"Ollama response missing 'embeddings' key: {data}")
 
-        vecs = np.array(embeddings, dtype=np.float32)  # (N, dim)
-        return self._l2_normalize(vecs)
+        if "embedding" not in data or not data["embedding"]:
+            raise RuntimeError(f"Unexpected /api/embeddings response: {data}")
 
+        vectors.append(np.array(data["embedding"], dtype=np.float32))
+
+    return vectors
     @staticmethod
     def _l2_normalize(vecs: np.ndarray) -> np.ndarray:
         """Row-wise L2 normalization so dot product == cosine similarity."""
