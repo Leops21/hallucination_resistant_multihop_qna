@@ -60,7 +60,7 @@ retriever:
     extraction_timeout: 120 # Web request timeout for local LLM / Anthropic during entity extraction
 
   # --- Persistence ---
-  index_cache_dir: "index_cache"
+  index_cache_dir: "index_cache_global"
 
 # --- Re-Ranker ---
 reranker:
