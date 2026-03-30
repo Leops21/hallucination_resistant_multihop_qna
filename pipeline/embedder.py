@@ -12,7 +12,7 @@ class OllamaEmbedder:
         model: str = "nomic-embed-text",
         base_url: str = "http://localhost:11434",
         batch_size: int = 64,
-        timeout: int = 60,
+        timeout: int = 600,
     ):
         self.model = model
         self.base_url = base_url.rstrip("/")
