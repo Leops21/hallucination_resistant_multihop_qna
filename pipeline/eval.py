@@ -46,10 +46,17 @@ def build_pipeline(cfg):
     
     log.info("Initializing retriever...")
     retriever = HybridRetriever.from_config(cfg)
-
-    cache_path = Path(f"{cfg.retriever.index_cache_dir}_global")
-
-    if cache_path.exists() and (cache_path / "faiss.index").exists():
+    
+    cache_path = Path(cfg.retriever.index_cache_dir)
+    
+    required_files = [
+    "faiss.index",
+    "bm25_tokens.pkl",
+    "dense_meta.json",
+    "passages.json",
+    "config.json",]
+    
+    if cache_path.exists() and all((cache_path / f).exists() for f in required_files):
         log.info(f"Loading cached global index from {cache_path}...")
         retriever.load(cache_path)
     else:
@@ -57,6 +64,8 @@ def build_pipeline(cfg):
         retriever.index(all_passages, show_progress=True)
         log.info(f"Saving global index to {cache_path}...")
         retriever.save(cache_path)
+
+    
 
     log.info("Loading reranker...")
     reranker = Reranker.from_config(cfg)
